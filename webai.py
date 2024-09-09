@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup  # Corrected import statement
 import phonenumbers
 import re
+from lxml import etree
 
 # Streamlit Web Scraper class
 class WebScraper:
@@ -21,25 +21,27 @@ class WebScraper:
     def scrape(self, url):
         try:
             response = requests.get(url)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response.raise_for_status()  # Raise an error for failed requests
+            parser = etree.HTMLParser()
+            tree = etree.fromstring(response.content, parser)
 
             # Sets to avoid duplicate entries
             names = set()
             phone_numbers = set()
             email_addresses = set()
 
-            # Extract relevant data from <p>, <li>, <td> tags
-            for tag in soup.find_all(['p', 'li', 'td']):
-                text = tag.get_text(separator=' ', strip=True)
-                
+            # Extract relevant data from <p>, <li>, <td> tags using XPath
+            for element in tree.xpath('//p | //li | //td'):
+                text = ' '.join(element.itertext()).strip()
+
                 # Match names (e.g., "John Doe")
                 if re.match(r'\b[A-Z][a-z]+ [A-Z][a-z]+\b', text):
                     names.add(text)
-                
+
                 # Match phone numbers using phonenumbers library
                 for match in phonenumbers.PhoneNumberMatcher(text, "IN"):  # Adjust country code if needed
                     phone_numbers.add(phonenumbers.format_number(match.number, phonenumbers.PhoneNumberFormat.E164))
-                
+
                 # Match emails using regex
                 if re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text):
                     email_addresses.add(re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text).group())
